@@ -1,7 +1,7 @@
 const express = require("express");
 const path = require("path");
 const TelegramBot = require("node-telegram-bot-api");
-const supabase = require("./Database/supabase");
+const supabase = require("./database/supabase");
 
 const {
   BOT_TOKEN,
@@ -54,7 +54,6 @@ async function getOrCreateUser(telegramUser, referralCode = null) {
     
     if (refUser) {
       referrerId = refUser.telegram_id;
-      // শুধুমাত্র ভেরিফাইড রেফার হলে পয়েন্ট যোগ করার সুব্যবস্থা রাখতে পারেন, বর্তমানে RPC কল রাখা হলো
       await supabase.rpc('increment_referral', { ref_id: referrerId });
     }
   }
@@ -113,7 +112,6 @@ async function checkChannelAndGroupMembership(userId) {
     console.error("Group verification error:", error.message);
   }
 
-  // দুটোতেই থাকতে হবে
   return channelVerified && groupVerified;
 }
 
@@ -205,7 +203,7 @@ app.get("/api/user/:id", async (req, res) => {
   const userId = Number(req.params.id);
 
   if (!userId) {
-    return.status(400).json({ success: false, message: "Invalid ID" });
+    return res.status(400).json({ success: false, message: "Invalid ID" });
   }
 
   const { data: user } = await supabase
@@ -215,7 +213,7 @@ app.get("/api/user/:id", async (req, res) => {
     .single();
 
   if (!user) {
-    return.status(404).json({ success: false, message: "User not found" });
+    return res.status(404).json({ success: false, message: "User not found" });
   }
 
   const verified = await checkChannelAndGroupMembership(userId);
@@ -242,7 +240,7 @@ app.post("/api/verify", async (req, res) => {
   const userId = Number(req.body.userId);
 
   if (!userId) {
-    return.status(400).json({ success: false, message: "User ID required" });
+    return res.status(400).json({ success: false, message: "User ID required" });
   }
 
   const verified = await checkChannelAndGroupMembership(userId);
@@ -266,7 +264,7 @@ app.get("/api/tasks", async (req, res) => {
     .eq("is_active", true);
 
   if (error) {
-    return.status(500).json({ success: false, message: error.message });
+    return res.status(500).json({ success: false, message: error.message });
   }
 
   res.json({ success: true, tasks });
@@ -361,4 +359,4 @@ app.get("/health", (req, res) => {
 app.listen(PORT, () => {
   console.log(`BS TASK ZONE server running on port ${PORT}`);
 });
-     
+  
