@@ -10,7 +10,7 @@ module.exports = {
 
   // Vercel/Web App URL
   WEB_APP_URL:
-    process.env.WEB_APP_URL || "https://bs-task-zone.vercel.app/",
+    process.env.WEB_APP_URL || "https://bs-task-zone-bot.vercel.app/",
 
   // Server Port
   PORT: process.env.PORT || 3000,
