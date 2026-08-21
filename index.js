@@ -1,6 +1,7 @@
 const express = require("express");
 const path = require("path");
 const TelegramBot = require("node-telegram-bot-api");
+const supabase = require("./database/supabase");
 
 const {
   BOT_TOKEN,
@@ -30,28 +31,65 @@ const bot = new TelegramBot(BOT_TOKEN, {
 });
 
 // --------------------------------------------------
-// Basic in-memory user data
-// Database will be connected later through Supabase.
+// Supabase User Management Helpers
 // --------------------------------------------------
 
-const users = new Map();
+async function getOrCreateUser(telegramUser, referralCode = null) {
+  const telegramId = telegramUser.id;
 
-function createUser(user) {
-  if (!users.has(user.id)) {
-    users.set(user.id, {
-      id: user.id,
-      username: user.username || "",
-      firstName: user.first_name || "",
-      photoUrl: "",
-      balance: 0,
-      referralPoints: 0,
-      referrals: [],
-      verified: false,
-      createdAt: new Date().toISOString()
-    });
+  // Check if user already exists
+  let { data: existingUser, error: fetchError } = await supabase
+    .from("users")
+    .select("*")
+    .eq("telegram_id", telegramId)
+    .single();
+
+  if (existingUser) {
+    return existingUser;
   }
 
-  return users.get(user.id);
+  // Handle referral if new user
+  let referrerId = null;
+  if (referralCode && String(referralCode) !== String(telegramId)) {
+    const { data: refUser } = await supabase
+      .from("users")
+      .select("telegram_id")
+      .eq("telegram_id", referralCode)
+      .single();
+    
+    if (refUser) {
+      referrerId = refUser.telegram_id;
+      
+      // Update referrer's points and count
+      await supabase.rpc('increment_referral', { ref_id: referrerId }); // Or handle via standard update
+    }
+  }
+
+  // Create new user in Supabase
+  const newUser = {
+    telegram_id: telegramId,
+    username: telegramUser.username || "",
+    first_name: telegramUser.first_name || "",
+    photo_url: "",
+    main_balance: 0,
+    referral_points: 0,
+    referral_count: 0,
+    is_verified: false,
+    referred_by: referrerId
+  };
+
+  const { data: insertedUser, error: insertError } = await supabase
+    .from("users")
+    .insert([newUser])
+    .select()
+    .single();
+
+  if (insertError) {
+    console.error("Error creating user:", insertError.message);
+    return null;
+  }
+
+  return insertedUser;
 }
 
 // --------------------------------------------------
@@ -113,27 +151,20 @@ function mainKeyboard() {
 
 bot.onText(/^\/start(?:\s+(.+))?$/, async (msg, match) => {
   const telegramUser = msg.from;
+  const referralCode = match && match[1] ? String(match[1]).trim() : null;
 
-  const user = createUser(telegramUser);
-
-  // Referral code
-  const referralCode = match && match[1]
-    ? String(match[1]).trim()
-    : null;
-
-  if (
-    referralCode &&
-    String(referralCode) !== String(telegramUser.id)
-  ) {
-    user.pendingReferrer = referralCode;
-  }
+  const user = await getOrCreateUser(telegramUser, referralCode);
 
   // Check required channel
   const verified = await checkChannelMembership(
     telegramUser.id
   );
 
-  user.verified = verified;
+  // Update verification status in DB
+  await supabase
+    .from("users")
+    .update({ is_verified: verified })
+    .eq("telegram_id", telegramUser.id);
 
   const verificationText = verified
     ? "🟢 Verified"
@@ -159,13 +190,14 @@ bot.onText(/^\/start(?:\s+(.+))?$/, async (msg, match) => {
 bot.onText(/^\/verify$/, async (msg) => {
   const telegramUser = msg.from;
 
-  const user = createUser(telegramUser);
-
   const verified = await checkChannelMembership(
     telegramUser.id
   );
 
-  user.verified = verified;
+  await supabase
+    .from("users")
+    .update({ is_verified: verified })
+    .eq("telegram_id", telegramUser.id);
 
   if (verified) {
     await bot.sendMessage(
@@ -194,19 +226,29 @@ app.get("/api/user/:id", async (req, res) => {
     });
   }
 
-  const telegramUser = {
-    id: userId
-  };
+  const { data: user } = await supabase
+    .from("users")
+    .select("*")
+    .eq("telegram_id", userId)
+    .single();
 
-  const user = createUser(telegramUser);
+  if (!user) {
+    return res.status(404).json({ success: false, message: "User not found" });
+  }
 
   const verified = await checkChannelMembership(userId);
 
-  user.verified = verified;
-
   res.json({
     success: true,
-    user
+    user: {
+      id: user.telegram_id,
+      username: user.username,
+      firstName: user.first_name,
+      photoUrl: user.photo_url,
+      balance: user.main_balance,
+      referralPoints: user.referral_points,
+      verified: verified
+    }
   });
 });
 
@@ -224,13 +266,12 @@ app.post("/api/verify", async (req, res) => {
     });
   }
 
-  const user = createUser({
-    id: userId
-  });
-
   const verified = await checkChannelMembership(userId);
 
-  user.verified = verified;
+  await supabase
+    .from("users")
+    .update({ is_verified: verified })
+    .eq("telegram_id", userId);
 
   res.json({
     success: true,
@@ -242,8 +283,15 @@ app.post("/api/verify", async (req, res) => {
 // API: Tasks
 // --------------------------------------------------
 
-app.get("/api/tasks", (req, res) => {
-  const tasks = getTaskList();
+app.get("/api/tasks", async (req, res) => {
+  const { data: tasks, error } = await supabase
+    .from("tasks")
+    .select("*")
+    .eq("is_active", true);
+
+  if (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
 
   res.json({
     success: true,
@@ -265,19 +313,21 @@ app.get("/api/wallet/:id", async (req, res) => {
     });
   }
 
-  const user = createUser({
-    id: userId
-  });
+  const { data: user } = await supabase
+    .from("users")
+    .select("main_balance, referral_points, is_verified")
+    .eq("telegram_id", userId)
+    .single();
 
-  const verified = await checkChannelMembership(userId);
-
-  user.verified = verified;
+  if (!user) {
+    return res.status(404).json({ success: false, message: "User not found" });
+  }
 
   res.json({
     success: true,
-    balance: user.balance,
-    referralPoints: user.referralPoints,
-    verified: user.verified
+    balance: user.main_balance,
+    referralPoints: user.referral_points,
+    verified: user.is_verified
   });
 });
 
@@ -288,9 +338,16 @@ app.get("/api/wallet/:id", async (req, res) => {
 app.get("/api/referral/:id", async (req, res) => {
   const userId = Number(req.params.id);
 
-  const user = createUser({
-    id: userId
-  });
+  const { data: user } = await supabase
+    .from("users")
+    .select("referral_count, referral_points")
+    .eq("telegram_id", userId)
+    .single();
+
+  const { data: referralsList } = await supabase
+    .from("users")
+    .select("first_name, created_at")
+    .eq("referred_by", userId);
 
   const botUsername =
     process.env.BOT_USERNAME || "YOUR_BOT_USERNAME";
@@ -301,9 +358,9 @@ app.get("/api/referral/:id", async (req, res) => {
   res.json({
     success: true,
     referralLink,
-    referralCount: user.referrals.length,
-    referralPoints: user.referralPoints,
-    referrals: user.referrals
+    referralCount: user ? user.referral_count : 0,
+    referralPoints: user ? user.referral_points : 0,
+    referrals: referralsList || []
   });
 });
 
@@ -337,3 +394,4 @@ app.listen(PORT, () => {
     `BS TASK ZONE server running on port ${PORT}`
   );
 });
+      
