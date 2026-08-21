@@ -178,28 +178,34 @@ a {
   font-size: 12px;
 }
 
+/* 3D Styled Balance Card */
 .balance-card,
 .wallet-balance-card {
   margin-top: 13px;
-  padding: 20px;
-  border-radius: 20px;
-  background: linear-gradient(135deg, #0b3561, #0a1727);
-  border: 1px solid rgba(67, 181, 255, 0.28);
-  box-shadow: 0 12px 35px rgba(0, 0, 0, 0.22);
+  padding: 22px;
+  border-radius: 22px;
+  background: linear-gradient(145deg, #0d3b6f, #071322);
+  border: 1px solid rgba(67, 181, 255, 0.4);
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.4), inset 0 2px 6px rgba(255, 255, 255, 0.15);
+  transform: perspective(1000px);
+  transition: transform 0.3s ease;
 }
 
 .balance-card span,
 .wallet-balance-card span {
   color: #a9c7e4;
   font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 .balance-card strong,
 .wallet-balance-card strong {
   display: block;
   margin-top: 8px;
-  font-size: 31px;
+  font-size: 32px;
   color: #ffffff;
+  text-shadow: 0 2px 10px rgba(22, 140, 255, 0.5);
 }
 
 .point-card {
@@ -211,6 +217,7 @@ a {
   border-radius: 18px;
   background: var(--card);
   border: 1px solid var(--border);
+  box-shadow: 0 6px 20px rgba(0,0,0,0.2);
 }
 
 .point-card span {
@@ -277,29 +284,32 @@ a {
   to { transform: translateX(-100%); }
 }
 
+/* Beautiful Telegram & Group Banners */
 .telegram-banner {
   position: relative;
   margin-top: 13px;
-  padding: 17px;
+  padding: 18px;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
   overflow: hidden;
   border-radius: 20px;
-  background: linear-gradient(135deg, #063a72, #081726 65%);
-  border: 1px solid rgba(67, 181, 255, 0.3);
+  background: linear-gradient(135deg, #09488c, #071728 70%);
+  border: 1px solid rgba(67, 181, 255, 0.35);
+  box-shadow: 0 8px 25px rgba(10, 80, 150, 0.2);
 }
 
 .telegram-banner-icon {
-  width: 48px;
-  height: 48px;
+  width: 50px;
+  height: 50px;
   flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 15px;
+  border-radius: 16px;
   background: #138eea;
-  font-size: 22px;
+  font-size: 24px;
+  box-shadow: 0 4px 15px rgba(19, 142, 234, 0.4);
 }
 
 .telegram-banner-content {
@@ -308,36 +318,44 @@ a {
 }
 
 .telegram-banner-content span {
-  color: #64c1ff;
-  font-size: 9px;
+  color: #79cbff;
+  font-size: 10px;
   font-weight: bold;
+  letter-spacing: 0.5px;
 }
 
 .telegram-banner-content h3 {
-  margin-top: 4px;
-  font-size: 13px;
+  margin-top: 3px;
+  font-size: 14px;
   color: #ffffff;
 }
 
 .telegram-banner-content p {
-  margin-top: 4px;
-  color: #9db4ca;
+  margin-top: 3px;
+  color: #a3c1df;
   font-size: 10px;
 }
 
 .join-button {
   position: relative;
   z-index: 2;
-  padding: 9px 11px;
-  border-radius: 10px;
-  background: #168cff;
-  color: white;
-  font-size: 10px;
-  font-weight: bold;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: #ffffff;
+  color: #0b3561;
+  font-size: 11px;
+  font-weight: 900;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+  transition: all 0.2s ease;
+}
+
+.join-button:active {
+  transform: scale(0.95);
 }
 
 .group-banner {
-  background: linear-gradient(135deg, #102b52, #08121e 65%);
+  background: linear-gradient(135deg, #1b365d, #08121e 70%);
+  border-color: rgba(67, 181, 255, 0.25);
 }
 
 .page-heading {
@@ -562,11 +580,12 @@ a {
   font-size: 10px;
 }
 
+/* Clear and Smooth Animated Spin Wheel */
 .spin-wheel {
   position: relative;
-  width: 165px;
-  height: 165px;
-  margin: 22px auto 17px;
+  width: 170px;
+  height: 170px;
+  margin: 24px auto 18px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -582,34 +601,42 @@ a {
     #084a8e 315deg,
     #168cff 360deg
   );
-  box-shadow: 0 0 35px rgba(22, 140, 255, 0.25);
+  box-shadow: 0 0 30px rgba(22, 140, 255, 0.3), inset 0 0 15px rgba(0, 0, 0, 0.4);
   transition: transform 3s cubic-bezier(0.15, 0.75, 0.15, 1);
+  animation: wheelPulse 4s ease-in-out infinite alternate;
+}
+
+@keyframes wheelPulse {
+  0% { box-shadow: 0 0 20px rgba(22, 140, 255, 0.2); }
+  100% { box-shadow: 0 0 35px rgba(22, 140, 255, 0.45); }
 }
 
 .spin-wheel::before {
   content: "";
   position: absolute;
-  width: 124px;
-  height: 124px;
+  width: 126px;
+  height: 126px;
   border-radius: 50%;
   background: #081522;
-  border: 2px solid rgba(255, 255, 255, 0.1);
+  border: 2px solid rgba(255, 255, 255, 0.12);
 }
 
 .spin-result {
   position: relative;
   z-index: 2;
-  font-size: 27px;
+  font-size: 28px;
   font-weight: 900;
   color: #ffffff;
+  text-shadow: 0 2px 8px rgba(0,0,0,0.5);
 }
 
 .spin-pointer {
   position: absolute;
-  top: -10px;
+  top: -12px;
   z-index: 5;
-  color: white;
-  font-size: 18px;
+  color: #ffffff;
+  font-size: 20px;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.6));
 }
 
 .spin-points {
@@ -632,6 +659,7 @@ a {
   color: white;
   font-size: 12px;
   font-weight: 900;
+  box-shadow: 0 4px 15px rgba(22, 140, 255, 0.3);
 }
 
 .spin-info {
@@ -823,7 +851,6 @@ a {
 }
 
 .status-badge {
-  height: fit-content;
   padding: 6px 8px;
   border-radius: 8px;
   font-size: 8px;
@@ -931,4 +958,5 @@ a {
   filter: none;
   opacity: 1;
   transform: translateY(-1px);
-}
+  }
+  
