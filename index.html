@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>BS TASK ZONE</title>
   <meta name="theme-color" content="#07111f">
-  <!-- ফাইলগুলো এখন মেইন ফোল্ডারে থাকায় পাথ ঠিক করে দেওয়া হলো -->
+  <!-- ফাইলগুলো রুট ফোল্ডারে থাকায় সঠিক পাথ দেওয়া হলো -->
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -23,7 +23,7 @@
       <div id="profile-avatar" class="profile-avatar">👤</div>
     </header>
 
-    <!-- MAIN CONTENT - এখানে স্ক্রলিং সুবিধা যোগ করার জন্য এটি মেইন কনটেইনার হিসেবে কাজ করবে -->
+    <!-- MAIN CONTENT -->
     <main class="main-content">
       
       <!-- HOME -->
@@ -50,7 +50,7 @@
           <div class="notice-icon">📢</div>
           <div class="notice-wrapper">
             <div class="notice-track">
-              ⚠️ গুরুত্বপূর্ণ নোটিশ: যেকোনো Task-এর Telegram Channel/Group অথবা অন্যান্য Social Media থেকে Unfollow, Unsubscribe অথবা Leave করলে Withdraw সুবিধা বন্ধ হয়ে যেতে পারে।
+              ⚠️ গুরুত্বপূর্ণ নোটিশ: অফিশিয়াল চ্যানেল এবং গ্রুপ উভয় জায়গা থেকে Unfollow, Unsubscribe অথবা Leave করলে Withdraw এবং Referral সুবিধা বন্ধ হয়ে যাবে।
             </div>
           </div>
         </div>
@@ -67,7 +67,7 @@
           <div class="telegram-banner-icon">👥</div>
           <div class="telegram-banner-content">
             <span>OFFICIAL GROUP</span>
-            <h3>Join Our Community</h3>
+            <h3>Join Our Community Group</h3>
             <p>Connect with our community.</p>
           </div>
           <a id="group-link" href="#" target="_blank" class="join-button">JOIN</a>
@@ -94,7 +94,7 @@
           <span>👥</span>
           <div>
             <h2>Refer & Earn</h2>
-            <p>Invite friends and earn 100 points.</p>
+            <p>Invite friends and earn points (Requires verification).</p>
           </div>
         </div>
         <div class="stats-grid">
@@ -161,7 +161,7 @@
             </div>
           </div>
           <div id="withdraw-verification" class="verification-warning">
-            🔒 Please verify your official channel membership.
+            🔒 চ্যানেল ও গ্রুপে জয়েন করে অ্যাকাউন্ট ভেরিফাই করুন, নতুবা উইথড্র করা যাবে না।
           </div>
           <div id="withdraw-form" class="withdraw-form">
             <label>Withdraw Method</label>
@@ -198,15 +198,16 @@
             <div>
               <span class="verification-icon">🔐</span>
               <div>
-                <h3>Channel Verification</h3>
-                <p>Verify your official channel membership.</p>
+                <h3>Channel & Group Verification</h3>
+                <p>Verify both official channel and group membership.</p>
               </div>
             </div>
             <span id="verification-status" class="status-badge unverified">UNVERIFIED</span>
           </div>
           <div id="verification-content" class="verification-content">
-            <p>Join the Official Channel and verify your account.</p>
+            <p>অ্যাকাউন্ট ভেরিফাই করতে অফিশিয়াল চ্যানেল এবং গ্রুপ—দুটোতেই জয়েন থাকা বাধ্যতামূলক।</p>
             <a id="verification-channel-link" href="#" target="_blank" class="join-channel-button">✈️ JOIN OFFICIAL CHANNEL</a>
+            <a id="verification-group-link" href="#" target="_blank" class="join-channel-button" style="margin-top: 8px; background: #2563eb;">👥 JOIN OFFICIAL GROUP</a>
             <button id="verify-button" class="verify-button" type="button">✓ VERIFY NOW</button>
           </div>
         </div>
