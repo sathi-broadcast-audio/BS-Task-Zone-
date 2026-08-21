@@ -1,33 +1,30 @@
-/* =========================================
-   BS TASK ZONE - Main Server Controller
-========================================= */
-
 const express = require("express");
 const path = require("path");
 const TelegramBot = require("node-telegram-bot-api");
 const supabase = require("./Database/supabase");
 
-// পরিবেশগত ভেরিয়েবল এবং কনফিগারেশন
-const BOT_TOKEN = process.env.BOT_TOKEN;
-const REQUIRED_CHANNEL = process.env.OFFICIAL_CHANNEL || process.env.REQUIRED_CHANNEL;
-const REQUIRED_GROUP = process.env.OFFICIAL_GROUP || process.env.REQUIRED_GROUP;
-const WEB_APP_URL = process.env.WEB_APP_URL || "";
-const PORT = process.env.PORT || 3000;
+const {
+  BOT_TOKEN,
+  REQUIRED_CHANNEL,
+  REQUIRED_GROUP,
+  WEB_APP_URL,
+  PORT = 3000
+} = require("./config");
 
 const app = express();
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// রুট ডিরেক্টরি থেকে স্ট্যাটিক ফাইল সার্ভ করার জন্য
+// Public web interface
 app.use(express.static(__dirname));
 
 // --------------------------------------------------
-// Telegram Bot (Vercel ক্র্যাশ এড়াতে পোলিং কন্ডিশন সহ)
+// Telegram Bot
 // --------------------------------------------------
 
 const bot = new TelegramBot(BOT_TOKEN, {
-  polling: process.env.NODE_ENV !== "production"
+  polling: true
 });
 
 // --------------------------------------------------
@@ -37,7 +34,7 @@ const bot = new TelegramBot(BOT_TOKEN, {
 async function getOrCreateUser(telegramUser, referralCode = null) {
   const telegramId = telegramUser.id;
 
-  let { data: existingUser, error: fetchError } = await supabase
+  let { data: existingUser } = await supabase
     .from("users")
     .select("*")
     .eq("telegram_id", telegramId)
@@ -57,6 +54,7 @@ async function getOrCreateUser(telegramUser, referralCode = null) {
     
     if (refUser) {
       referrerId = refUser.telegram_id;
+      // শুধুমাত্র ভেরিফাইড রেফার হলে পয়েন্ট যোগ করার সুব্যবস্থা রাখতে পারেন, বর্তমানে RPC কল রাখা হলো
       await supabase.rpc('increment_referral', { ref_id: referrerId });
     }
   }
@@ -88,36 +86,35 @@ async function getOrCreateUser(telegramUser, referralCode = null) {
 }
 
 // --------------------------------------------------
-// Channel & Group Verification (উভয়টিতে জয়েন চেক করার লজিক)
+// Dual Membership Verification (Channel & Group)
 // --------------------------------------------------
 
-async function checkMembership(chatId, userId) {
-  if (!chatId) return true; // যদি চ্যাট আইডি সেট করা না থাকে, তবে বাইপাস করবে
+async function checkChannelAndGroupMembership(userId) {
+  const validStatuses = ["creator", "administrator", "member"];
+
+  let channelVerified = false;
+  let groupVerified = false;
 
   try {
-    const member = await bot.getChatMember(chatId, userId);
-    const validStatuses = ["creator", "administrator", "member"];
-    return validStatuses.includes(member.status);
+    if (REQUIRED_CHANNEL) {
+      const channelMember = await bot.getChatMember(REQUIRED_CHANNEL, userId);
+      channelVerified = validStatuses.includes(channelMember.status);
+    }
   } catch (error) {
-    console.error(`Membership check error for ${chatId}:`, error.message);
-    return false;
-  }
-}
-
-async function verifyUserMemberships(userId) {
-  let isChannelMember = true;
-  let isGroupMember = true;
-
-  if (REQUIRED_CHANNEL) {
-    isChannelMember = await checkMembership(REQUIRED_CHANNEL, userId);
+    console.error("Channel verification error:", error.message);
   }
 
-  if (REQUIRED_GROUP) {
-    isGroupMember = await checkMembership(REQUIRED_GROUP, userId);
+  try {
+    if (REQUIRED_GROUP) {
+      const groupMember = await bot.getChatMember(REQUIRED_GROUP, userId);
+      groupVerified = validStatuses.includes(groupMember.status);
+    }
+  } catch (error) {
+    console.error("Group verification error:", error.message);
   }
 
-  // ইউজারকে চ্যানেল এবং গ্রুপ উভয়েই থাকতে হবে
-  return isChannelMember && isGroupMember;
+  // দুটোতেই থাকতে হবে
+  return channelVerified && groupVerified;
 }
 
 // --------------------------------------------------
@@ -151,16 +148,14 @@ bot.onText(/^\/start(?:\s+(.+))?$/, async (msg, match) => {
 
   await getOrCreateUser(telegramUser, referralCode);
 
-  const verified = await verifyUserMemberships(telegramUser.id);
+  const verified = await checkChannelAndGroupMembership(telegramUser.id);
 
   await supabase
     .from("users")
     .update({ is_verified: verified })
     .eq("telegram_id", telegramUser.id);
 
-  const verificationText = verified
-    ? "🟢 Verified (Channel & Group)"
-    : "🔴 Unverified (Join both Channel & Group)";
+  const verificationText = verified ? "🟢 Verified" : "🔴 Unverified";
 
   await bot.sendMessage(
     telegramUser.id,
@@ -170,7 +165,7 @@ bot.onText(/^\/start(?:\s+(.+))?$/, async (msg, match) => {
 
 🔐 Status: ${verificationText}
 
-📌 Open the app below to access Home, Tasks, Refer, Wallet and Profile.`,
+📌 চ্যানেল এবং গ্রুপ দুটিতে জয়েন করে অ্যাপ ওপেন করুন।`,
     mainKeyboard()
   );
 });
@@ -182,7 +177,7 @@ bot.onText(/^\/start(?:\s+(.+))?$/, async (msg, match) => {
 bot.onText(/^\/verify$/, async (msg) => {
   const telegramUser = msg.from;
 
-  const verified = await verifyUserMemberships(telegramUser.id);
+  const verified = await checkChannelAndGroupMembership(telegramUser.id);
 
   await supabase
     .from("users")
@@ -192,12 +187,12 @@ bot.onText(/^\/verify$/, async (msg) => {
   if (verified) {
     await bot.sendMessage(
       telegramUser.id,
-      "🟢 Verification Successful!\n\nআপনার account সফলভাবে Verified হয়েছে।"
+      "🟢 Verification Successful!\n\nআপনার account এখন Verified।"
     );
   } else {
     await bot.sendMessage(
       telegramUser.id,
-      "🔴 আপনি এখনো অফিশিয়াল চ্যানেল অথবা গ্রুপে জয়েন করেননি।\n\nদুটোতেই জয়েন করে আবার /verify দিন।"
+      "🔴 আপনি এখনো অফিশিয়াল চ্যানেল অথবা গ্রুপ দুটির যেকোনো একটিতে (বা উভয়টিতে) জয়েন করেননি। দুটোতেই জয়েন করে আবার /verify দিন।"
     );
   }
 });
@@ -210,23 +205,20 @@ app.get("/api/user/:id", async (req, res) => {
   const userId = Number(req.params.id);
 
   if (!userId) {
-    return res.status(400).json({
-      success: false,
-      message: "Invalid Telegram User ID"
-    });
+    return.status(400).json({ success: false, message: "Invalid ID" });
   }
 
-  let { data: user } = await supabase
+  const { data: user } = await supabase
     .from("users")
     .select("*")
     .eq("telegram_id", userId)
     .single();
 
   if (!user) {
-    return res.status(404).json({ success: false, message: "User not found" });
+    return.status(404).json({ success: false, message: "User not found" });
   }
 
-  const verified = await verifyUserMemberships(userId);
+  const verified = await checkChannelAndGroupMembership(userId);
 
   res.json({
     success: true,
@@ -250,23 +242,17 @@ app.post("/api/verify", async (req, res) => {
   const userId = Number(req.body.userId);
 
   if (!userId) {
-    return res.status(400).json({
-      success: false,
-      message: "User ID required"
-    });
+    return.status(400).json({ success: false, message: "User ID required" });
   }
 
-  const verified = await verifyUserMemberships(userId);
+  const verified = await checkChannelAndGroupMembership(userId);
 
   await supabase
     .from("users")
     .update({ is_verified: verified })
     .eq("telegram_id", userId);
 
-  res.json({
-    success: true,
-    verified
-  });
+  res.json({ success: true, verified });
 });
 
 // --------------------------------------------------
@@ -280,45 +266,10 @@ app.get("/api/tasks", async (req, res) => {
     .eq("is_active", true);
 
   if (error) {
-    return res.status(500).json({ success: false, message: error.message });
+    return.status(500).json({ success: false, message: error.message });
   }
 
-  res.json({
-    success: true,
-    tasks
-  });
-});
-
-// --------------------------------------------------
-// API: Wallet
-// --------------------------------------------------
-
-app.get("/api/wallet/:id", async (req, res) => {
-  const userId = Number(req.params.id);
-
-  if (!userId) {
-    return res.status(400).json({
-      success: false,
-      message: "Invalid User ID"
-    });
-  }
-
-  const { data: user } = await supabase
-    .from("users")
-    .select("main_balance, referral_points, is_verified")
-    .eq("telegram_id", userId)
-    .single();
-
-  if (!user) {
-    return res.status(404).json({ success: false, message: "User not found" });
-  }
-
-  res.json({
-    success: true,
-    balance: user.main_balance,
-    referralPoints: user.referral_points,
-    verified: user.is_verified
-  });
+  res.json({ success: true, tasks });
 });
 
 // --------------------------------------------------
@@ -336,7 +287,7 @@ app.get("/api/referral/:id", async (req, res) => {
 
   const { data: referralsList } = await supabase
     .from("users")
-    .select("first_name, created_at")
+    .select("first_name, created_at, username")
     .eq("referred_by", userId);
 
   const botUsername = process.env.BOT_USERNAME || "YOUR_BOT_USERNAME";
@@ -352,13 +303,47 @@ app.get("/api/referral/:id", async (req, res) => {
 });
 
 // --------------------------------------------------
+// API: Spin Action
+// --------------------------------------------------
+
+app.post("/api/spin", async (req, res) => {
+  const { userId, reward } = req.body;
+
+  const { data: user } = await supabase
+    .from("users")
+    .select("*")
+    .eq("telegram_id", userId)
+    .single();
+
+  if (!user) {
+    return res.json({ success: false, message: "User not found" });
+  }
+
+  if (user.referral_points < 500) {
+    return res.json({ success: false, message: "Insufficient points" });
+  }
+
+  const newBalance = Number(user.main_balance) + Number(reward);
+  const newPoints = Number(user.referral_points) - 500;
+
+  await supabase
+    .from("users")
+    .update({ main_balance: newBalance, referral_points: newPoints })
+    .eq("telegram_id", userId);
+
+  res.json({
+    success: true,
+    balance: newBalance,
+    referralPoints: newPoints
+  });
+});
+
+// --------------------------------------------------
 // Home route
 // --------------------------------------------------
 
 app.get("/", (req, res) => {
-  res.sendFile(
-    path.join(__dirname, "index.html")
-  );
+  res.sendFile(path.join(__dirname, "index.html"));
 });
 
 // --------------------------------------------------
@@ -366,10 +351,7 @@ app.get("/", (req, res) => {
 // --------------------------------------------------
 
 app.get("/health", (req, res) => {
-  res.json({
-    status: "online",
-    bot: "BS TASK ZONE"
-  });
+  res.json({ status: "online", bot: "BS TASK ZONE" });
 });
 
 // --------------------------------------------------
@@ -377,8 +359,6 @@ app.get("/health", (req, res) => {
 // --------------------------------------------------
 
 app.listen(PORT, () => {
-  console.log(
-    `BS TASK ZONE server running on port ${PORT}`
-  );
+  console.log(`BS TASK ZONE server running on port ${PORT}`);
 });
-      
+     
