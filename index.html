@@ -234,6 +234,24 @@
   </div>
 
   <script src="script.js"></script>
+  <script>
+    // Navigation Switching Logic
+    document.querySelectorAll('.nav-button').forEach(button => {
+      button.addEventListener('click', () => {
+        const targetScreenId = button.getAttribute('data-screen');
+        
+        // Remove active class from all buttons and screens
+        document.querySelectorAll('.nav-button').forEach(btn => btn.classList.remove('active'));
+        document.querySelectorAll('.screen').forEach(scr => scr.classList.remove('active'));
+        
+        // Add active class to clicked button and target screen
+        button.classList.add('active');
+        const targetScreen = document.getElementById(targetScreenId);
+        if (targetScreen) {
+          targetScreen.classList.add('active');
+        }
+      });
+    });
+  </script>
 </body>
-  </html>
-                            
+</html>
