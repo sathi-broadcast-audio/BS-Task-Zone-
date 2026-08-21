@@ -135,6 +135,8 @@
           <span>Available Balance</span>
           <strong>৳<span id="wallet-balance">0.00</span></strong>
         </div>
+        
+        <!-- স্পিন অপশন: কোনো ছবি ছাড়া সম্পূর্ণ নিজস্ব মডার্ন ডিজাইন -->
         <div class="spin-card">
           <div class="spin-title">
             <div>🎰</div>
@@ -143,14 +145,17 @@
               <p>500 Referral Points = 1 Spin</p>
             </div>
           </div>
-          <div class="spin-wheel">
-            <div class="spin-pointer">▼</div>
-            <div id="spin-result" class="spin-result">?</div>
+          
+          <div style="margin: 25px auto; padding: 20px; background: rgba(22, 140, 255, 0.05); border: 1px dashed var(--border); border-radius: 16px; text-align: center;">
+            <span style="font-size: 11px; color: var(--muted); display: block; margin-bottom: 5px;">SPIN RESULT</span>
+            <div id="spin-result" style="font-size: 32px; font-weight: 900; color: #4db5ff; letter-spacing: 1px;">?</div>
           </div>
+
           <div class="spin-points">Your Points: <strong id="wallet-points">0</strong></div>
           <button id="spin-button" class="spin-button" type="button">🎰 SPIN NOW</button>
           <p class="spin-info">Reward: ৳5 - ৳20</p>
         </div>
+
         <div id="withdraw-section" class="withdraw-card">
           <div class="section-title">
             <span>💳</span>
