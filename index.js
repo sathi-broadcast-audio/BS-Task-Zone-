@@ -1,33 +1,33 @@
+/* =========================================
+   BS TASK ZONE - Main Server Controller
+========================================= */
+
 const express = require("express");
 const path = require("path");
 const TelegramBot = require("node-telegram-bot-api");
 const supabase = require("./Database/supabase");
 
-const {
-  BOT_TOKEN,
-  REQUIRED_CHANNEL,
-  WEB_APP_URL,
-  PORT = 3000
-} = require("./config");
-
-const {
-  getTaskList
-} = require("./tasks");
+// পরিবেশগত ভেরিয়েবল এবং কনফিগারেশন
+const BOT_TOKEN = process.env.BOT_TOKEN;
+const REQUIRED_CHANNEL = process.env.OFFICIAL_CHANNEL || process.env.REQUIRED_CHANNEL;
+const REQUIRED_GROUP = process.env.OFFICIAL_GROUP || process.env.REQUIRED_GROUP;
+const WEB_APP_URL = process.env.WEB_APP_URL || "";
+const PORT = process.env.PORT || 3000;
 
 const app = express();
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Public web interface (রুট ডিরেক্টরি থেকে ফাইল সার্ভ করার জন্য __dirname ব্যবহার করা হয়েছে)
+// রুট ডিরেক্টরি থেকে স্ট্যাটিক ফাইল সার্ভ করার জন্য
 app.use(express.static(__dirname));
 
 // --------------------------------------------------
-// Telegram Bot
+// Telegram Bot (Vercel ক্র্যাশ এড়াতে পোলিং কন্ডিশন সহ)
 // --------------------------------------------------
 
 const bot = new TelegramBot(BOT_TOKEN, {
-  polling: true
+  polling: process.env.NODE_ENV !== "production"
 });
 
 // --------------------------------------------------
@@ -37,7 +37,6 @@ const bot = new TelegramBot(BOT_TOKEN, {
 async function getOrCreateUser(telegramUser, referralCode = null) {
   const telegramId = telegramUser.id;
 
-  // Check if user already exists
   let { data: existingUser, error: fetchError } = await supabase
     .from("users")
     .select("*")
@@ -48,7 +47,6 @@ async function getOrCreateUser(telegramUser, referralCode = null) {
     return existingUser;
   }
 
-  // Handle referral if new user
   let referrerId = null;
   if (referralCode && String(referralCode) !== String(telegramId)) {
     const { data: refUser } = await supabase
@@ -59,13 +57,10 @@ async function getOrCreateUser(telegramUser, referralCode = null) {
     
     if (refUser) {
       referrerId = refUser.telegram_id;
-      
-      // Update referrer's points and count
       await supabase.rpc('increment_referral', { ref_id: referrerId });
     }
   }
 
-  // Create new user in Supabase
   const newUser = {
     telegram_id: telegramId,
     username: telegramUser.username || "",
@@ -93,35 +88,36 @@ async function getOrCreateUser(telegramUser, referralCode = null) {
 }
 
 // --------------------------------------------------
-// Channel Verification
+// Channel & Group Verification (উভয়টিতে জয়েন চেক করার লজিক)
 // --------------------------------------------------
 
-async function checkChannelMembership(userId) {
-  if (!REQUIRED_CHANNEL) {
-    return false;
-  }
+async function checkMembership(chatId, userId) {
+  if (!chatId) return true; // যদি চ্যাট আইডি সেট করা না থাকে, তবে বাইপাস করবে
 
   try {
-    const member = await bot.getChatMember(
-      REQUIRED_CHANNEL,
-      userId
-    );
-
-    const validStatuses = [
-      "creator",
-      "administrator",
-      "member"
-    ];
-
+    const member = await bot.getChatMember(chatId, userId);
+    const validStatuses = ["creator", "administrator", "member"];
     return validStatuses.includes(member.status);
   } catch (error) {
-    console.error(
-      "Channel verification error:",
-      error.message
-    );
-
+    console.error(`Membership check error for ${chatId}:`, error.message);
     return false;
   }
+}
+
+async function verifyUserMemberships(userId) {
+  let isChannelMember = true;
+  let isGroupMember = true;
+
+  if (REQUIRED_CHANNEL) {
+    isChannelMember = await checkMembership(REQUIRED_CHANNEL, userId);
+  }
+
+  if (REQUIRED_GROUP) {
+    isGroupMember = await checkMembership(REQUIRED_GROUP, userId);
+  }
+
+  // ইউজারকে চ্যানেল এবং গ্রুপ উভয়েই থাকতে হবে
+  return isChannelMember && isGroupMember;
 }
 
 // --------------------------------------------------
@@ -153,22 +149,18 @@ bot.onText(/^\/start(?:\s+(.+))?$/, async (msg, match) => {
   const telegramUser = msg.from;
   const referralCode = match && match[1] ? String(match[1]).trim() : null;
 
-  const user = await getOrCreateUser(telegramUser, referralCode);
+  await getOrCreateUser(telegramUser, referralCode);
 
-  // Check required channel
-  const verified = await checkChannelMembership(
-    telegramUser.id
-  );
+  const verified = await verifyUserMemberships(telegramUser.id);
 
-  // Update verification status in DB
   await supabase
     .from("users")
     .update({ is_verified: verified })
     .eq("telegram_id", telegramUser.id);
 
   const verificationText = verified
-    ? "🟢 Verified"
-    : "🔴 Unverified";
+    ? "🟢 Verified (Channel & Group)"
+    : "🔴 Unverified (Join both Channel & Group)";
 
   await bot.sendMessage(
     telegramUser.id,
@@ -176,7 +168,7 @@ bot.onText(/^\/start(?:\s+(.+))?$/, async (msg, match) => {
 
 🎯 Complete Tasks & Earn Rewards
 
-🔐 Channel Status: ${verificationText}
+🔐 Status: ${verificationText}
 
 📌 Open the app below to access Home, Tasks, Refer, Wallet and Profile.`,
     mainKeyboard()
@@ -190,9 +182,7 @@ bot.onText(/^\/start(?:\s+(.+))?$/, async (msg, match) => {
 bot.onText(/^\/verify$/, async (msg) => {
   const telegramUser = msg.from;
 
-  const verified = await checkChannelMembership(
-    telegramUser.id
-  );
+  const verified = await verifyUserMemberships(telegramUser.id);
 
   await supabase
     .from("users")
@@ -202,12 +192,12 @@ bot.onText(/^\/verify$/, async (msg) => {
   if (verified) {
     await bot.sendMessage(
       telegramUser.id,
-      "🟢 Verification Successful!\n\nআপনার account এখন Verified।"
+      "🟢 Verification Successful!\n\nআপনার account সফলভাবে Verified হয়েছে।"
     );
   } else {
     await bot.sendMessage(
       telegramUser.id,
-      "🔴 আপনি এখনো Required Channel-এ Join করেননি।\n\nChannel-এ Join করে আবার /verify দিন।"
+      "🔴 আপনি এখনো অফিশিয়াল চ্যানেল অথবা গ্রুপে জয়েন করেননি।\n\nদুটোতেই জয়েন করে আবার /verify দিন।"
     );
   }
 });
@@ -226,7 +216,7 @@ app.get("/api/user/:id", async (req, res) => {
     });
   }
 
-  const { data: user } = await supabase
+  let { data: user } = await supabase
     .from("users")
     .select("*")
     .eq("telegram_id", userId)
@@ -236,7 +226,7 @@ app.get("/api/user/:id", async (req, res) => {
     return res.status(404).json({ success: false, message: "User not found" });
   }
 
-  const verified = await checkChannelMembership(userId);
+  const verified = await verifyUserMemberships(userId);
 
   res.json({
     success: true,
@@ -266,7 +256,7 @@ app.post("/api/verify", async (req, res) => {
     });
   }
 
-  const verified = await checkChannelMembership(userId);
+  const verified = await verifyUserMemberships(userId);
 
   await supabase
     .from("users")
@@ -349,11 +339,8 @@ app.get("/api/referral/:id", async (req, res) => {
     .select("first_name, created_at")
     .eq("referred_by", userId);
 
-  const botUsername =
-    process.env.BOT_USERNAME || "YOUR_BOT_USERNAME";
-
-  const referralLink =
-    `https://t.me/${botUsername}?start=${userId}`;
+  const botUsername = process.env.BOT_USERNAME || "YOUR_BOT_USERNAME";
+  const referralLink = `https://t.me/${botUsername}?start=${userId}`;
 
   res.json({
     success: true,
@@ -365,7 +352,7 @@ app.get("/api/referral/:id", async (req, res) => {
 });
 
 // --------------------------------------------------
-// Home route (রুট ফোল্ডারের index.html ফাইল সার্ভ করার জন্য ঠিক করা হয়েছে)
+// Home route
 // --------------------------------------------------
 
 app.get("/", (req, res) => {
@@ -394,4 +381,4 @@ app.listen(PORT, () => {
     `BS TASK ZONE server running on port ${PORT}`
   );
 });
-    
+      
