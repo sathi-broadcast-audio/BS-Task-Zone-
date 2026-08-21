@@ -1,7 +1,7 @@
 const express = require("express");
 const path = require("path");
 const TelegramBot = require("node-telegram-bot-api");
-const supabase = require("./database/supabase");
+const supabase = require("./Database/supabase");
 
 const {
   BOT_TOKEN,
@@ -19,8 +19,8 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Public web interface
-app.use(express.static(path.join(__dirname, "public")));
+// Public web interface (রুট ডিরেক্টরি থেকে ফাইল সার্ভ করার জন্য __dirname ব্যবহার করা হয়েছে)
+app.use(express.static(__dirname));
 
 // --------------------------------------------------
 // Telegram Bot
@@ -61,7 +61,7 @@ async function getOrCreateUser(telegramUser, referralCode = null) {
       referrerId = refUser.telegram_id;
       
       // Update referrer's points and count
-      await supabase.rpc('increment_referral', { ref_id: referrerId }); // Or handle via standard update
+      await supabase.rpc('increment_referral', { ref_id: referrerId });
     }
   }
 
@@ -365,12 +365,12 @@ app.get("/api/referral/:id", async (req, res) => {
 });
 
 // --------------------------------------------------
-// Home route
+// Home route (রুট ফোল্ডারের index.html ফাইল সার্ভ করার জন্য ঠিক করা হয়েছে)
 // --------------------------------------------------
 
 app.get("/", (req, res) => {
   res.sendFile(
-    path.join(__dirname, "public", "index.html")
+    path.join(__dirname, "index.html")
   );
 });
 
@@ -394,4 +394,4 @@ app.listen(PORT, () => {
     `BS TASK ZONE server running on port ${PORT}`
   );
 });
-      
+    
